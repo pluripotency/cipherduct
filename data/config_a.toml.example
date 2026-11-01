@@ -1,0 +1,8 @@
+site_name = "本社Aサイト"
+role = "A"
+port = 3000
+dirlist = [
+  "./target_dirs_a/dataset_alpha",
+  "./target_dirs_a/dataset_beta"
+]
+recipients = []

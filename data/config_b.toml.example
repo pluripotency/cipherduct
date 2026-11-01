@@ -1,0 +1,13 @@
+site_name = "支社Bサイト"
+role = "B"
+port = 3001
+dirlist = [
+  "./target_dirs_b/dataset_alpha",
+  "./target_dirs_b/dataset_beta"
+]
+
+[b_site_keys]
+private_key = ""
+public_key = ""
+fingerprint = ""
+created_at = ""

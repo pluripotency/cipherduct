@@ -1,0 +1,33 @@
+{
+  "name": "cipherduct",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot src/index.ts",
+    "dev:a": "bun --hot src/index.ts a",
+    "dev:b": "bun --hot src/index.ts b",
+    "start": "NODE_ENV=production bun src/index.ts",
+    "start:a": "NODE_ENV=production bun src/index.ts a",
+    "start:b": "NODE_ENV=production bun src/index.ts b",
+    "build": "bun run build.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "bun-plugin-tailwind": "^0.1.2",
+    "fflate": "^0.8.3",
+    "lucide-react": "^1.66.0",
+    "react": "^19",
+    "react-dom": "^19",
+    "smol-toml": "^1.9.1",
+    "tailwindcss": "^4.1.11"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^19",
+    "@types/react-dom": "^19"
+  },
+  "peerDependencies": {
+    "typescript": "^7"
+  }
+}
