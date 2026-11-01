@@ -4,7 +4,9 @@ import {
   ChevronRight,
   Clock,
   Copy,
+  Eye,
   FileCheck2,
+  FileCode2,
   FileText,
   Folder,
   FolderOpen,
@@ -13,14 +15,16 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   DirectoryRootTree,
+  FilePreviewResponse,
   FileTreeNode,
   FolderTreeNode,
   SiteRole,
   TreeNode,
 } from "../shared/types";
+import { FilePreviewModal } from "./FilePreviewModal";
 import { formatBytes, formatDateTime, formatRelativeAge } from "./formatters";
 
 type TimePreset = "1h" | "24h" | "3d" | "7d" | "30d" | "all" | "custom";
@@ -30,6 +34,71 @@ interface DirectoryTreeViewProps {
   role: SiteRole;
   trees: DirectoryRootTree[];
   scannedAt: string;
+}
+
+const KNOWN_BINARY_EXTS = new Set([
+  ".enc",
+  ".zip",
+  ".tar",
+  ".gz",
+  ".tgz",
+  ".bz2",
+  ".xz",
+  ".7z",
+  ".rar",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".avif",
+  ".bmp",
+  ".ico",
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".ppt",
+  ".pptx",
+  ".wasm",
+  ".exe",
+  ".dll",
+  ".so",
+  ".dylib",
+  ".bin",
+  ".dat",
+  ".sqlite",
+  ".db",
+  ".mp3",
+  ".mp4",
+  ".mov",
+  ".avi",
+  ".woff",
+  ".woff2",
+  ".ttf",
+  ".otf",
+]);
+
+function isPreviewableTextCandidate(fileName: string): boolean {
+  const lower = fileName.toLowerCase();
+  const dotIdx = lower.lastIndexOf(".");
+  if (dotIdx === -1) return true;
+  const ext = lower.slice(dotIdx);
+  return !KNOWN_BINARY_EXTS.has(ext);
+}
+
+function isStructuredDataFile(fileName: string): boolean {
+  const lower = fileName.toLowerCase();
+  return (
+    lower.endsWith(".json") ||
+    lower.endsWith(".ndjson") ||
+    lower.endsWith(".jsonl") ||
+    lower.endsWith(".toml") ||
+    lower.endsWith(".yaml") ||
+    lower.endsWith(".yml") ||
+    lower.endsWith(".xml")
+  );
 }
 
 function getThresholdMs(
@@ -126,6 +195,12 @@ export function DirectoryTreeView({
   const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(() => new Set());
   const [copiedHashKey, setCopiedHashKey] = useState<string | null>(null);
 
+  // Text / JSON file preview modal state
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewData, setPreviewData] = useState<FilePreviewResponse | null>(null);
+
   // Auto-expand matching folder paths whenever search or time filter changes
   useEffect(() => {
     setCollapsedKeys(new Set());
@@ -202,11 +277,43 @@ export function DirectoryTreeView({
     }
   };
 
+  const handleOpenPreview = useCallback(async (dirPath: string, relativePath: string) => {
+    setPreviewOpen(true);
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setPreviewData(null);
+
+    try {
+      const params = new URLSearchParams({
+        dirPath,
+        relativePath,
+      });
+      const res = await fetch(`/api/files/preview?${params.toString()}`);
+      const body = (await res.json()) as FilePreviewResponse & { error?: string };
+      if (!res.ok) {
+        throw new Error(body.error || `プレビュー取得エラー (HTTP ${res.status})`);
+      }
+      setPreviewData(body);
+    } catch (err) {
+      setPreviewError(
+        err instanceof Error ? err.message : "ファイルの読み込みに失敗しました。",
+      );
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, []);
+
+  const handleClosePreview = useCallback(() => {
+    setPreviewOpen(false);
+  }, []);
+
   const hiddenByFilterCount = Math.max(0, totalScannedFiles - totalMatchedFiles);
 
-  const renderFileRow = (file: FileTreeNode, rootKey: string, depth: number) => {
-    const rowKey = `${rootKey}::file::${file.relativePath}`;
+  const renderFileRow = (file: FileTreeNode, rootDirPath: string, depth: number) => {
+    const rowKey = `${rootDirPath}::file::${file.relativePath}`;
     const isCopied = copiedHashKey === rowKey;
+    const canPreview = isPreviewableTextCandidate(file.name);
+    const isCodeOrJson = isStructuredDataFile(file.name);
 
     return (
       <div
@@ -216,22 +323,53 @@ export function DirectoryTreeView({
       >
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 min-w-0">
-            <FileText
-              className="h-4 w-4 shrink-0 text-slate-400 group-hover:text-sky-600 transition-colors"
-              aria-hidden="true"
-            />
-            <span
-              className="truncate text-sm font-medium text-slate-800"
-              title={file.relativePath}
-            >
-              {file.name}
-            </span>
+            {isCodeOrJson ? (
+              <FileCode2
+                className="h-4 w-4 shrink-0 text-sky-500 group-hover:text-sky-600 transition-colors"
+                aria-hidden="true"
+              />
+            ) : (
+              <FileText
+                className="h-4 w-4 shrink-0 text-slate-400 group-hover:text-sky-600 transition-colors"
+                aria-hidden="true"
+              />
+            )}
+
+            {canPreview ? (
+              <button
+                type="button"
+                onClick={() => handleOpenPreview(rootDirPath, file.relativePath)}
+                className="truncate text-left text-sm font-medium text-slate-800 hover:text-sky-700 hover:underline underline-offset-2 cursor-pointer"
+                title={`${file.relativePath} の内容を表示`}
+              >
+                {file.name}
+              </button>
+            ) : (
+              <span
+                className="truncate text-sm font-medium text-slate-800"
+                title={file.relativePath}
+              >
+                {file.name}
+              </span>
+            )}
+
             <span className="shrink-0 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[11px] text-slate-600">
               {formatBytes(file.size)}
             </span>
           </div>
 
           <div className="flex items-center gap-2 pl-6 sm:pl-0 shrink-0 text-xs text-slate-500">
+            {canPreview && (
+              <button
+                type="button"
+                onClick={() => handleOpenPreview(rootDirPath, file.relativePath)}
+                className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-sky-700 hover:border-sky-300 hover:bg-sky-50 transition-colors cursor-pointer"
+                aria-label={`${file.name} の内容を表示`}
+              >
+                <Eye className="h-3 w-3" aria-hidden="true" />
+                <span>表示</span>
+              </button>
+            )}
             <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">
               {formatRelativeAge(file.mtimeMs, referenceNowMs)}
             </span>
@@ -341,8 +479,8 @@ export function DirectoryTreeView({
             </h2>
             <p className="mt-0.5 text-xs text-slate-500">
               {role === "A"
-                ? "対象ディレクトリ配下の変更を検知して .manifest.json を自動管理します。"
-                : "復号・差分反映された本ディレクトリの最新ファイル階層を表示します。"}
+                ? "対象ディレクトリ配下の変更を検知して .manifest.json を自動管理します。ファイル名または「表示」でテキスト内容を確認できます。"
+                : "復号・差分反映された本ディレクトリの最新ファイル階層を表示します。ファイル名または「表示」でテキスト内容を確認できます。"}
             </p>
           </div>
 
@@ -595,6 +733,14 @@ export function DirectoryTreeView({
           })
         )}
       </div>
+
+      <FilePreviewModal
+        open={previewOpen}
+        loading={previewLoading}
+        error={previewError}
+        preview={previewData}
+        onClose={handleClosePreview}
+      />
     </section>
   );
 }

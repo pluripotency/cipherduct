@@ -25,7 +25,12 @@ import {
   buildEncryptedBundleForRecipient,
   importEncryptedBundleOnBSite,
 } from "../src/server/syncEngine";
-import type { DirectoryManifest, PublicAppState, SyncImportReport } from "../src/shared/types";
+import type {
+  DirectoryManifest,
+  FilePreviewResponse,
+  PublicAppState,
+  SyncImportReport,
+} from "../src/shared/types";
 
 describe("CipherDuct E2E Workflow & Engine Verification", () => {
   let tmpWorkspace = "";
@@ -380,5 +385,61 @@ describe("CipherDuct E2E Workflow & Engine Verification", () => {
 
     const dec = decryptBundle(enc, kp4096.privateKeyPem);
     expect(new TextDecoder().decode(dec)).toBe("RSA-4096 payload verification");
+  });
+
+  test("6. 共通テキストファイルプレビュー機能（JSON/CSV/Markdown表示・バイナリ判定・パストラバーサル拒否）を検証", async () => {
+    // 1) JSON preview on A-site
+    const jsonParams = new URLSearchParams({
+      dirPath: "./site_a/dataset_beta",
+      relativePath: "config/app.json",
+    });
+    const jsonRes = await fetch(`${aBaseUrl}/api/files/preview?${jsonParams.toString()}`);
+    expect(jsonRes.status).toBe(200);
+    const jsonPreview = (await jsonRes.json()) as FilePreviewResponse;
+    expect(jsonPreview.isText).toBe(true);
+    expect(jsonPreview.language).toBe("json");
+    expect(jsonPreview.content).toContain('"env": "production"');
+
+    // 2) CSV preview on B-site (synced destination)
+    const csvParams = new URLSearchParams({
+      dirPath: "./site_b/dataset_alpha",
+      relativePath: "finance/q4/ledger.csv",
+    });
+    const csvRes = await fetch(`${bBaseUrl}/api/files/preview?${csvParams.toString()}`);
+    expect(csvRes.status).toBe(200);
+    const csvPreview = (await csvRes.json()) as FilePreviewResponse;
+    expect(csvPreview.isText).toBe(true);
+    expect(csvPreview.language).toBe("csv");
+    expect(csvPreview.content).toContain("1003,128000");
+
+    // 3) Binary file detection (NUL-containing payload)
+    const binFile = path.join(tmpWorkspace, "site_a/dataset_alpha/raw_blob.dat");
+    await writeFile(binFile, new Uint8Array([0x89, 0x50, 0x00, 0x01, 0xff]));
+    const binParams = new URLSearchParams({
+      dirPath: "./site_a/dataset_alpha",
+      relativePath: "raw_blob.dat",
+    });
+    const binRes = await fetch(`${aBaseUrl}/api/files/preview?${binParams.toString()}`);
+    expect(binRes.status).toBe(200);
+    const binPreview = (await binRes.json()) as FilePreviewResponse;
+    expect(binPreview.isText).toBe(false);
+    expect(binPreview.content).toBeNull();
+
+    // 4) Path traversal & unregistered dirPath rejection
+    const traversalParams = new URLSearchParams({
+      dirPath: "./site_a/dataset_alpha",
+      relativePath: "../../data/config_b.toml",
+    });
+    const travRes = await fetch(
+      `${aBaseUrl}/api/files/preview?${traversalParams.toString()}`,
+    );
+    expect(travRes.status).toBe(400);
+
+    const unregParams = new URLSearchParams({
+      dirPath: "/etc",
+      relativePath: "hosts",
+    });
+    const unregRes = await fetch(`${aBaseUrl}/api/files/preview?${unregParams.toString()}`);
+    expect(unregRes.status).toBe(400);
   });
 });

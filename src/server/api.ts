@@ -9,6 +9,7 @@ import {
   updateConfig,
 } from "./config";
 import { computePublicKeyFingerprint, generateRsaKeyPair } from "./crypto";
+import { readSafeFilePreview } from "./filePreview";
 import { scanDirlist } from "./scanner";
 import {
   buildEncryptedBundleForRecipient,
@@ -131,6 +132,32 @@ export function createApiRoutes(options: ApiContextOptions = {}) {
           return jsonError(
             err instanceof Error ? err.message : "再スキャンに失敗しました。",
             500,
+          );
+        }
+      },
+    },
+
+    "/api/files/preview": {
+      async GET(req: Request) {
+        try {
+          const url = new URL(req.url);
+          const dirPath = url.searchParams.get("dirPath") ?? "";
+          const relativePath = url.searchParams.get("relativePath") ?? "";
+
+          const config = await loadConfig(options.configPath);
+          const preview = await readSafeFilePreview({
+            allowedDirlist: config.dirlist,
+            dirPath,
+            relativePath,
+            baseDir: options.baseDir,
+          });
+          return Response.json(preview);
+        } catch (err) {
+          return jsonError(
+            err instanceof Error
+              ? err.message
+              : "ファイルプレビューの取得に失敗しました。",
+            400,
           );
         }
       },

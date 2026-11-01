@@ -15,9 +15,9 @@ Bサイト（受信側）からAサイト（送信元）への片方向SSHポー
     - Aで起動した際はAサイト専用画面・バッジのみ、Bで起動した際はBサイト専用画面・バッジのみを表示し、ヘッダーにA/B両方の切替メニューを出さない構成としています。
     - Web UI全体を視認性の高い **Light テーマ**（`color-scheme: light`）に統一しています。
 
-### 1.2 共通UI・ディレクトリツリー表示
-- **実装ファイル**: `src/components/DirectoryTreeView.tsx`
-- アコーディオン階層ツリー、`mtime` 表示、SHA-256表示チェックボックス（デフォルトOFF）、期間フィルタ（デフォルト24時間以内＋プリセット／カスタム期間）、インクリメンタルサーチ＆親ディレクトリ階層の維持・自動展開を実装しています。
+### 1.2 共通UI・ディレクトリツリー表示 & テキストファイルプレビュー
+- **実装ファイル**: `src/components/DirectoryTreeView.tsx`, `src/components/FilePreviewModal.tsx`, `src/server/filePreview.ts`
+- アコーディオン階層ツリー、`mtime` 表示、SHA-256表示チェックボックス（デフォルトOFF）、期間フィルタ（デフォルト24時間以内＋プリセット／カスタム期間）、インクリメンタルサーチ＆親ディレクトリ階層の維持・自動展開に加え、テキスト系ファイル（JSON整形切替・CSVテーブル切替・行番号・コピー対応）のプレビュー機能を実装しています。
 
 ### 1.3 【Aサイト（送信元）】
 - **実装ファイル**: `src/server/scanner.ts`, `src/server/archiver.ts`, `src/server/crypto.ts`, `src/components/ASiteWorkspace.tsx`

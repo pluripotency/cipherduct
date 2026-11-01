@@ -117,3 +117,31 @@ export interface SyncImportReport {
   tempDirPath: string;
   tempDirCleaned: boolean;
 }
+
+export type FilePreviewLanguage =
+  | "json"
+  | "ndjson"
+  | "csv"
+  | "toml"
+  | "yaml"
+  | "xml"
+  | "markdown"
+  | "code"
+  | "text"
+  | "binary";
+
+export interface FilePreviewResponse {
+  dirPath: string;
+  datasetName: string;
+  relativePath: string;
+  fileName: string;
+  size: number;
+  mtimeMs: number;
+  mtime: string;
+  sha256: string;
+  isText: boolean;
+  truncated: boolean;
+  maxPreviewBytes: number;
+  language: FilePreviewLanguage;
+  content: string | null;
+}
